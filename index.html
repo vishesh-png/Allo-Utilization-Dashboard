@@ -88,24 +88,8 @@ tbody tr:hover{background:var(--chip)}
   </header>
 
   <div class="controls">
-    <div class="fg"><span class="lbl">Date range</span>
-      <span style="display:flex;gap:8px;align-items:center">
-        <select id="dateSel"></select>
-        <span id="customWrap" hidden style="display:inline-flex;gap:6px;align-items:center">
-          <input type="date" id="dFrom"/><span style="color:var(--muted)">→</span><input type="date" id="dTo"/>
-        </span>
-      </span>
-    </div>
-    <div class="fg"><span class="lbl">Role</span>
-      <span class="seg" id="roleSeg">
-        <button data-v="All" class="on">All</button>
-        <button data-v="Doctor">Doctors</button>
-        <button data-v="Therapist">Therapists</button>
-      </span>
-    </div>
     <div class="fg"><span class="lbl">Provider</span><select id="provSel"></select></div>
     <div class="fg"><span class="lbl">Type</span><select id="typeSel"></select></div>
-    <div class="fg"><span class="lbl">City</span><select id="citySel"></select></div>
     <div class="fg"><span class="lbl">Location</span>
       <span class="seg" id="chSeg">
         <button data-v="All" class="on">All</button>
@@ -114,7 +98,7 @@ tbody tr:hover{background:var(--chip)}
       </span>
     </div>
   </div>
-  <div class="scope">Date, Role &amp; Provider filter everything — including the per-provider charts. <b>Type</b>, <b>City</b> &amp; <b>Location</b> refine <b>outcomes only</b> (capacity can’t be split by them: one block serves many types on both channels).</div>
+  <div class="scope"><b>Provider</b> filters everything — including the charts. <b>Type</b> &amp; <b>Location</b> refine <b>outcomes only</b> (capacity can’t be split by them: one block serves many types on both channels).</div>
 
   <div class="kpis" id="kpis"></div>
 
@@ -157,7 +141,7 @@ tbody tr:hover{background:var(--chip)}
     usually allows several consultation types, online <i>and</i> offline. <b>Booked slots</b> = exact count of realised
     appointments (completed + no-show); <b>offered slots</b> = offered time ÷ that provider’s average appointment
     length (approx); <b>blank/wasted</b> = offered − booked. <b>Utilisation %</b> is exact (booked ÷ offered time).
-    In the table, capacity columns ignore Type/City/Location; outcome columns respect them. Only providers currently
+    In the table, capacity columns ignore Type/Location; outcome columns respect them. Only providers currently
     accepting new patients are included.
   </div>
   <div class="foot" id="footLine"></div>
@@ -190,8 +174,9 @@ D.out.forEach(r=>{const a=pAgg[r[O.p]];a.bk+=r[O.bk];a.slots+=r[O.comp]+r[O.ns];
 const roleDur=r=>{const a=roleAgg[r];return a&&a.slots>0?a.bk/a.slots:10;};
 const avgDur=pAgg.map((a,i)=>a.slots>0?a.bk/a.slots:roleDur(prole(i)));
 
-// ---- state ----
-let role="All", provider="All", type="All", city="All", channel="All", from=DMIN, to=DMAX;
+// ---- state (full window; role & city fixed to All) ----
+let provider="All", type="All", channel="All";
+const role="All", city="All", from=DMIN, to=DMAX;
 const $=s=>document.querySelector(s), tip=$("#tip");
 const fmt=n=>Math.round(n).toLocaleString("en-IN");
 const pct=(a,b)=>b>0?(100*a/b):null;
@@ -220,7 +205,7 @@ function renderKPIs(){
     ["cap","s1d","Slots booked",fmt(bkSlots),"realised (exact)"],
     ["cap","","Utilisation",util!=null?util.toFixed(1)+"%":"—","booked ÷ offered time"],
     ["cap","s8d","Blank / wasted slots","~"+fmt(blank),"offered − booked"],
-    ["out","","Appointments",fmt(tot),filt?"filtered":"all types · cities · locations"],
+    ["out","","Appointments",fmt(tot),filt?"filtered":"all types · all locations"],
     ["out","s1d","Completed",fmt(comp),(pct(comp,comp+ns)?.toFixed(1)??"—")+"% completion"],
     ["out","s6d","No-shows",fmt(ns),(pct(ns,comp+ns)?.toFixed(1)??"—")+"% no-show rate"],
     ["out","s3d","Rescheduled",fmt(rs),(pct(rs,tot)?.toFixed(1)??"—")+"% reschedule rate"],
@@ -333,14 +318,13 @@ function renderTable(){
 }
 
 function updateCaptions(){
-  const who=provider!=="All"?pname(provider):(role==="All"?"all providers":role+"s");
+  const who=provider!=="All"?pname(provider):"all providers";
   const tl=type==="All"?"all types":TYPE_NAMES[type]||type;
   const cl=channel==="All"?"all locations":(channel==="On"?"online":"offline");
-  const ci=city==="All"?"all cities":city;
-  $("#capCs").textContent=`Bookable slots offered vs. booked · daily · ${who} · ${from} → ${to}`;
-  $("#outCs").textContent=`Daily appointments by outcome · ${who} · ${tl} · ${ci} · ${cl}`;
-  $("#typeCs").textContent=`Volume & outcome mix per type · ${who} · ${ci} · ${cl} · ${from} → ${to}`;
-  $("#tableCs").textContent=`Per-provider · ${from} → ${to} · capacity columns ignore Type/City/Location; outcome columns respect them · click a column to sort`;
+  $("#capCs").textContent=`Bookable slots offered vs. booked · daily · ${who}`;
+  $("#outCs").textContent=`Daily appointments by outcome · ${who} · ${tl} · ${cl}`;
+  $("#typeCs").textContent=`Volume & outcome mix per type · ${who} · ${cl}`;
+  $("#tableCs").textContent=`Per-provider · full window · capacity columns ignore Type/Location; outcome columns respect them · click a column to sort`;
 }
 function bindHover(sel){$(sel).querySelectorAll(".hv").forEach(el=>{
   el.addEventListener("mousemove",e=>showTip(e,decodeURIComponent(el.dataset.t)));el.addEventListener("mouseleave",hideTip);});}
@@ -348,21 +332,6 @@ function bindHover(sel){$(sel).querySelectorAll(".hv").forEach(el=>{
 function renderAll(){renderKPIs();chartCap();chartOut();chartType();renderTable();updateCaptions();}
 
 // ---- controls ----
-const PRESETS=[
-  ["Full window ("+DMIN.slice(5)+" – "+DMAX.slice(5)+")",DMIN,DMAX],
-  ["Last 7 days",shiftDays(DMAX,-6),DMAX],
-  ["Last 14 days",shiftDays(DMAX,-13),DMAX],
-  ["Last 30 days",shiftDays(DMAX,-29),DMAX],
-  ["Custom…",null,null],
-];
-const dateSel=$("#dateSel");
-dateSel.innerHTML=PRESETS.map((p,i)=>`<option value="${i}">${p[0]}</option>`).join("");
-$("#dFrom").min=$("#dTo").min=DMIN;$("#dFrom").max=$("#dTo").max=DMAX;$("#dFrom").value=from;$("#dTo").value=to;
-dateSel.onchange=()=>{const p=PRESETS[+dateSel.value];
-  if(p[1]===null){$("#customWrap").hidden=false;from=$("#dFrom").value;to=$("#dTo").value;}
-  else{$("#customWrap").hidden=true;from=p[1];to=p[2];$("#dFrom").value=from;$("#dTo").value=to;}renderAll();};
-$("#dFrom").onchange=$("#dTo").onchange=()=>{from=$("#dFrom").value;to=$("#dTo").value;if(from>to){const t=from;from=to;to=t;$("#dFrom").value=from;$("#dTo").value=to;}renderAll();};
-
 function buildProvList(){
   const items=[];for(let i=0;i<NP;i++){if(role==="All"||prole(i)===role)items.push(i);}
   items.sort((a,b)=>pname(a).localeCompare(pname(b)));
@@ -375,12 +344,7 @@ const typeVol={};D.out.forEach(r=>typeVol[r[O.t]]=(typeVol[r[O.t]]||0)+r[O.tot])
 $("#typeSel").innerHTML=`<option value="All">All types</option>`+Object.keys(typeVol).sort((a,b)=>typeVol[b]-typeVol[a]).map(t=>`<option value="${t}">${TYPE_NAMES[t]||t}</option>`).join("");
 $("#typeSel").onchange=()=>{type=$("#typeSel").value;renderAll();};
 
-const cityVol={};D.out.forEach(r=>cityVol[D.cities[r[O.c]]]=(cityVol[D.cities[r[O.c]]]||0)+r[O.tot]);
-$("#citySel").innerHTML=`<option value="All">All cities</option>`+D.cities.slice().sort((a,b)=>(cityVol[b]||0)-(cityVol[a]||0)).map(c=>`<option value="${c}">${c}</option>`).join("");
-$("#citySel").onchange=()=>{city=$("#citySel").value;renderAll();};
-
 function seg(id,fn){const el=$(id);el.querySelectorAll("button").forEach(b=>b.onclick=()=>{el.querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on");fn(b.dataset.v);});}
-seg("#roleSeg",v=>{role=v;provider="All";buildProvList();renderAll();});
 seg("#chSeg",v=>{channel=v;renderAll();});
 $("#themebtn").onclick=()=>{const r=document.documentElement;const cur=r.getAttribute("data-theme")||(matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light");r.setAttribute("data-theme",cur==="dark"?"light":"dark");renderAll();};
 
