@@ -1,0 +1,5 @@
+# Public repo carries only the static site; internal queries/scripts stay local.
+*
+!.gitignore
+!index.html
+!data.js
